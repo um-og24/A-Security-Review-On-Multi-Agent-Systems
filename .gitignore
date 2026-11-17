@@ -1,0 +1,6 @@
+**/.env
+**/certs/
+**/data/
+**/shared-config/
+**/__pycache__/
+*.pyc

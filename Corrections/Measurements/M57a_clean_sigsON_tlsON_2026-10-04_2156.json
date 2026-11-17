@@ -1,0 +1,20 @@
+{
+  "combination": "M57a_clean_sigsON_tlsON",
+  "purpose": "Examiners' item 57: TLS validation overhead, clean DNS to the genuine thermostat with certificate validation ON",
+  "settings": {
+    "dns_poisoning_active": false,
+    "verify_signatures": true,
+    "verify_certificates": true,
+    "profile": "full_defence",
+    "target_agents": [
+      "thermostat"
+    ],
+    "attacker": "spoof thermostat, tamper_responses on"
+  },
+  "trials": 30,
+  "started": "2026-10-04T21:53:56",
+  "finished": "2026-10-04T21:56:06",
+  "mean_wall_seconds_per_trial": 4.2,
+  "lab": "WSL2 Ubuntu 24.04 on the Windows 11 laptop; service code unchanged",
+  "csv": "M57a_clean_sigsON_tlsON_2026-10-04_2156.csv"
+}

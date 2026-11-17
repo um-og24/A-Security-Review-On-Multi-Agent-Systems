@@ -1,0 +1,37 @@
+{
+  "hub": {
+    "verify_signatures": false,
+    "verify_certificates": true,
+    "trust_ca_path": "/certs/lab-ca.crt",
+    "poll_interval": 4,
+    "target_agents": ["thermostat", "security-camera", "door-lock", "lighting"],
+    "execution_state": "paused",
+    "default_public_key_path": "/certs/genuine.pub.pem",
+    "public_keys_by_kid": {
+      "genuine-agent-key-001": "/certs/genuine.pub.pem"
+    },
+    "llm_prompt_mode": "attack",
+    "llm_auto_pull_model": true,
+    "llm_warmup_model": true
+  },
+  "attacker": {
+    "mode": "spoof",
+    "spoof_agent": "thermostat",
+    "tamper_responses": true,
+    "capture_credentials": true,
+    "forward_to_genuine": false,
+    "forward_include_token": false,
+    "serve_spoofed_cards": false,
+    "relay_verify_genuine_tls": false,
+    "relay_trust_ca_path": "/certs/lab-ca.crt"
+  },
+  "genuine": {
+    "sign_cards": true,
+    "require_auth": true
+  },
+  "lab": {
+    "dns_poisoning_active": true,
+    "active_experiment": "baseline_vulnerable",
+    "last_updated": ""
+  }
+}

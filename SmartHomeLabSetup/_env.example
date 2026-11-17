@@ -1,0 +1,15 @@
+# Reproduction defaults only. No real service keys or original environment included.
+LOG_DIR=/app/logs
+LOGGER_PORT=5005
+GENUINE_PORT=443
+ATTACKER_IP=172.20.0.4
+ATTACKER_PORT=443
+PUSH_TOKEN=replace-with-a-local-lab-token
+CONFIG_PATH=/config/config.json
+LOGGER_URL=http://logger:5005
+OLLAMA_URL=http://llm-proxy:11435
+LLM_MODEL=qwen2.5:1.5b
+LLM_MODEL_OPTIONS=qwen2.5:1.5b,llama3.2:3b,mistral:7b,gemma3n:e4b,dolphin-llama3:8b
+SWEEP_TRIALS_PER_COMBO=30
+PRIMARY_LLM_URLS=http://172.20.0.6:11434
+PRIMARY_LLM_API_KEYS=

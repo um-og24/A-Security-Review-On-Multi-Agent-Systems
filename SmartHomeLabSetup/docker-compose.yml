@@ -1,0 +1,467 @@
+# docker-compose.yml - A2A Smart Home Security Lab
+# Ten containers: 4 genuine agents + hub + attacker + ollama + llm-proxy + dashboard + logger
+# Each genuine agent has Docker resource limits simulating device tiers.
+#
+# Single-writer logging: all services emit events via HTTP to the logger
+# container, which is the only process that writes to CSV files.  This
+# eliminates cross-container write races on the shared logs volume.
+#
+# Global settings live in .env — edit that file to change shared variables
+# for all services at once.  After changes:  docker compose up -d
+
+services:
+
+  # -----------------------------------------------------------------------
+  # CENTRAL LOGGER SERVICE (single-writer CSV architecture)
+  # -----------------------------------------------------------------------
+
+  logger:
+    image: python:3.11-slim
+    container_name: logger
+    restart: unless-stopped
+    volumes:
+      - ./logger_service.py:/app/logger_service.py
+      - ./logger.py:/app/logger.py
+      - ./requirements.txt:/app/requirements.txt
+      - ./logs:/app/logs
+    working_dir: /app
+    command: >
+      sh -c "pip install -r requirements.txt --no-cache-dir -q &&
+             python logger_service.py"
+    networks:
+      a2a-net:
+        ipv4_address: 172.20.0.7
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5005/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    environment:
+      - LOG_DIR=${LOG_DIR}
+      - LOGGER_PORT=${LOGGER_PORT}
+
+  # -----------------------------------------------------------------------
+  # GENUINE AGENTS (separate containers, separate IPs, resource-constrained)
+  # -----------------------------------------------------------------------
+
+  genuine-thermostat:
+    image: python:3.11-slim
+    container_name: genuine-thermostat
+    restart: unless-stopped
+    depends_on:
+      logger:
+        condition: service_healthy
+    volumes:
+      - ./server_genuine.py:/app/server_genuine.py
+      - ./a2a_models.py:/app/a2a_models.py
+      - ./log_client.py:/app/log_client.py
+      - ./config_manager.py:/app/config_manager.py
+      - ./requirements.txt:/app/requirements.txt
+      - ./certs:/certs:ro
+      - ./shared-config:/app/shared
+    working_dir: /app
+    command: >
+      sh -c "pip install -r requirements.txt --no-cache-dir -q &&
+             python server_genuine.py"
+    networks:
+      a2a-net:
+        ipv4_address: 172.20.0.10
+    environment:
+      - AGENT_TYPE=thermostat
+      - GENUINE_HOSTNAME=thermostat.smarthome.example.com
+      - GENUINE_PORT=${GENUINE_PORT}
+      - VALID_PUSH_TOKEN=${PUSH_TOKEN}
+      - CONFIG_PATH=${CONFIG_PATH}
+      - LOGGER_URL=${LOGGER_URL}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,ssl; urllib.request.urlopen('https://localhost:443/health',context=ssl._create_unverified_context())"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+
+  genuine-camera:
+    image: python:3.11-slim
+    container_name: genuine-camera
+    restart: unless-stopped
+    depends_on:
+      logger:
+        condition: service_healthy
+    volumes:
+      - ./server_genuine.py:/app/server_genuine.py
+      - ./a2a_models.py:/app/a2a_models.py
+      - ./log_client.py:/app/log_client.py
+      - ./config_manager.py:/app/config_manager.py
+      - ./requirements.txt:/app/requirements.txt
+      - ./certs:/certs:ro
+      - ./shared-config:/app/shared
+    working_dir: /app
+    command: >
+      sh -c "pip install -r requirements.txt --no-cache-dir -q &&
+             python server_genuine.py"
+    networks:
+      a2a-net:
+        ipv4_address: 172.20.0.11
+    environment:
+      - AGENT_TYPE=security-camera
+      - GENUINE_HOSTNAME=camera.smarthome.example.com
+      - GENUINE_PORT=${GENUINE_PORT}
+      - VALID_PUSH_TOKEN=${PUSH_TOKEN}
+      - CONFIG_PATH=${CONFIG_PATH}
+      - LOGGER_URL=${LOGGER_URL}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,ssl; urllib.request.urlopen('https://localhost:443/health',context=ssl._create_unverified_context())"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+  genuine-doorlock:
+    image: python:3.11-slim
+    container_name: genuine-doorlock
+    restart: unless-stopped
+    depends_on:
+      logger:
+        condition: service_healthy
+    volumes:
+      - ./server_genuine.py:/app/server_genuine.py
+      - ./a2a_models.py:/app/a2a_models.py
+      - ./log_client.py:/app/log_client.py
+      - ./config_manager.py:/app/config_manager.py
+      - ./requirements.txt:/app/requirements.txt
+      - ./certs:/certs:ro
+      - ./shared-config:/app/shared
+    working_dir: /app
+    command: >
+      sh -c "pip install -r requirements.txt --no-cache-dir -q &&
+             python server_genuine.py"
+    networks:
+      a2a-net:
+        ipv4_address: 172.20.0.12
+    environment:
+      - AGENT_TYPE=door-lock
+      - GENUINE_HOSTNAME=doorlock.smarthome.example.com
+      - GENUINE_PORT=${GENUINE_PORT}
+      - VALID_PUSH_TOKEN=${PUSH_TOKEN}
+      - CONFIG_PATH=${CONFIG_PATH}
+      - LOGGER_URL=${LOGGER_URL}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,ssl; urllib.request.urlopen('https://localhost:443/health',context=ssl._create_unverified_context())"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+  genuine-lighting:
+    image: python:3.11-slim
+    container_name: genuine-lighting
+    restart: unless-stopped
+    depends_on:
+      logger:
+        condition: service_healthy
+    volumes:
+      - ./server_genuine.py:/app/server_genuine.py
+      - ./a2a_models.py:/app/a2a_models.py
+      - ./log_client.py:/app/log_client.py
+      - ./config_manager.py:/app/config_manager.py
+      - ./requirements.txt:/app/requirements.txt
+      - ./certs:/certs:ro
+      - ./shared-config:/app/shared
+    working_dir: /app
+    command: >
+      sh -c "pip install -r requirements.txt --no-cache-dir -q &&
+             python server_genuine.py"
+    networks:
+      a2a-net:
+        ipv4_address: 172.20.0.13
+    environment:
+      - AGENT_TYPE=lighting
+      - GENUINE_HOSTNAME=lighting.smarthome.example.com
+      - GENUINE_PORT=${GENUINE_PORT}
+      - VALID_PUSH_TOKEN=${PUSH_TOKEN}
+      - CONFIG_PATH=${CONFIG_PATH}
+      - LOGGER_URL=${LOGGER_URL}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,ssl; urllib.request.urlopen('https://localhost:443/health',context=ssl._create_unverified_context())"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  # -----------------------------------------------------------------------
+  # SMART HOME HUB (client / orchestrator)
+  # -----------------------------------------------------------------------
+
+  smart-home-hub:
+    image: python:3.11-slim
+    container_name: smart-home-hub
+    restart: unless-stopped
+    depends_on:
+      logger:
+        condition: service_healthy
+      genuine-thermostat:
+        condition: service_healthy
+      genuine-camera:
+        condition: service_healthy
+      genuine-doorlock:
+        condition: service_healthy
+      genuine-lighting:
+        condition: service_healthy
+      attacker-relay:
+        condition: service_healthy
+      llm-proxy:
+        condition: service_healthy
+    volumes:
+      - ./smart_home_hub.py:/app/smart_home_hub.py
+      - ./llm_selector.py:/app/llm_selector.py
+      - ./a2a_models.py:/app/a2a_models.py
+      - ./log_client.py:/app/log_client.py
+      - ./config_manager.py:/app/config_manager.py
+      - ./requirements.txt:/app/requirements.txt
+      - ./certs:/certs:ro
+      - ./shared-config:/app/shared
+    working_dir: /app
+    # Clean baseline hostname routing: smart-home hostnames resolve to the
+    # genuine agent IPs by default. Scenario-level DNS poisoning is now
+    # controlled in hub code via lab.dns_poisoning_active rather than being
+    # baked into Docker networking.
+    extra_hosts:
+      - "thermostat.smarthome.example.com:172.20.0.10"
+      - "camera.smarthome.example.com:172.20.0.11"
+      - "doorlock.smarthome.example.com:172.20.0.12"
+      - "lighting.smarthome.example.com:172.20.0.13"
+      - "smarthome.example.com:172.20.0.10"
+    command: >
+      sh -c "pip install -r requirements.txt --no-cache-dir -q &&
+             python smart_home_hub.py"
+    networks:
+      a2a-net:
+        ipv4_address: 172.20.0.3
+    environment:
+      - PUSH_TOKEN=${PUSH_TOKEN}
+      - CONFIG_PATH=${CONFIG_PATH}
+      - LOGGER_URL=${LOGGER_URL}
+      - OLLAMA_URL=${OLLAMA_URL}
+      - LLM_MODEL=${LLM_MODEL}
+      - LLM_TIMEOUT=${LLM_TIMEOUT:-90}
+      - LLM_WARMUP_TIMEOUT=${LLM_WARMUP_TIMEOUT:-120}
+      - ATTACKER_IP=${ATTACKER_IP}
+      - ATTACKER_PORT=${ATTACKER_PORT}
+
+  # -----------------------------------------------------------------------
+  # ATTACKER RELAY (MITM interceptor)
+  # -----------------------------------------------------------------------
+
+  attacker-relay:
+    image: python:3.11-slim
+    container_name: attacker-relay
+    restart: unless-stopped
+    depends_on:
+      logger:
+        condition: service_healthy
+    volumes:
+      - ./attacker_relay.py:/app/attacker_relay.py
+      - ./a2a_models.py:/app/a2a_models.py
+      - ./log_client.py:/app/log_client.py
+      - ./config_manager.py:/app/config_manager.py
+      - ./requirements.txt:/app/requirements.txt
+      - ./certs:/certs:ro
+      - ./shared-config:/app/shared
+    working_dir: /app
+    command: >
+      sh -c "pip install -r requirements.txt --no-cache-dir -q &&
+             python attacker_relay.py"
+    ports:
+      - "9443:443"
+    networks:
+      a2a-net:
+        ipv4_address: ${ATTACKER_IP}
+    environment:
+      - ATTACKER_PORT=${ATTACKER_PORT}
+      - GENUINE_HOST=genuine-thermostat
+      - GENUINE_PORT=${GENUINE_PORT}
+      - CONFIG_PATH=${CONFIG_PATH}
+      - LOGGER_URL=${LOGGER_URL}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,ssl; urllib.request.urlopen('https://localhost:443/health',context=ssl._create_unverified_context())"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  # -----------------------------------------------------------------------
+  # OLLAMA LLM SERVICE (for agent selection)
+  # -----------------------------------------------------------------------
+
+  ollama-llm:
+    image: ollama/ollama:latest
+    container_name: ollama-llm
+    restart: unless-stopped
+    volumes:
+      - ./ollama-data:/root/.ollama
+    environment:
+      - LLM_MODEL=${LLM_MODEL}
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      a2a-net:
+        ipv4_address: 172.20.0.6
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 8G
+
+  # -----------------------------------------------------------------------
+  # LLM PROXY (transparent Ollama relay — healthiest-first service list)
+  # -----------------------------------------------------------------------
+
+  llm-proxy:
+    image: python:3.11-slim
+    container_name: llm-proxy
+    restart: unless-stopped
+    depends_on:
+      ollama-llm:
+        condition: service_healthy
+    volumes:
+      - ./llm_proxy.py:/app/llm_proxy.py
+      - ./llm_manager.py:/app/llm_manager.py
+      - ./requirements.txt:/app/requirements.txt
+    working_dir: /app
+    command: >
+      sh -c "pip install -r requirements.txt --no-cache-dir -q &&
+             pip install fastapi uvicorn --no-cache-dir -q &&
+             python -m uvicorn llm_proxy:app --host 0.0.0.0 --port 11435"
+    networks:
+      a2a-net:
+        ipv4_address: 172.20.0.8
+    environment:
+      - PRIMARY_LLM_URLS=${PRIMARY_LLM_URLS:-http://172.20.0.6:11434}
+      - PRIMARY_LLM_API_KEYS=${PRIMARY_LLM_API_KEYS:-}
+      - LLM_REQUEST_TIMEOUT=${LLM_REQUEST_TIMEOUT:-120}
+      - LOAD_BALANCING=${LOAD_BALANCING:-priority}
+      - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-300}
+      - HEALTH_CHECK_TIMEOUT=${HEALTH_CHECK_TIMEOUT:-5}
+      - MAX_CONSECUTIVE_FAILURES=${MAX_CONSECUTIVE_FAILURES:-3}
+      - FAST_HEALTH_CHECK=${FAST_HEALTH_CHECK:-true}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:11435/health/simple')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # -----------------------------------------------------------------------
+  # WEB DASHBOARD
+  # -----------------------------------------------------------------------
+
+  web-dashboard:
+    image: python:3.11-slim
+    container_name: web-dashboard
+    restart: unless-stopped
+    depends_on:
+      - logger
+      - genuine-thermostat
+      - smart-home-hub
+      - attacker-relay
+    volumes:
+      - ./web_dashboard.py:/app/web_dashboard.py
+      - ./a2a_models.py:/app/a2a_models.py
+      - ./config_manager.py:/app/config_manager.py
+      - ./logger.py:/app/logger.py
+      - ./log_client.py:/app/log_client.py
+      - ./requirements.txt:/app/requirements.txt
+      - ./index.html:/app/templates/index.html
+      - ./logs:/app/logs:ro
+      - ./shared-config:/app/shared
+    working_dir: /app
+    command: >
+      sh -c "pip install -r requirements.txt --no-cache-dir -q &&
+             python web_dashboard.py"
+    ports:
+      - "8880:8080"
+    networks:
+      a2a-net:
+        ipv4_address: 172.20.0.5
+    environment:
+      - FLASK_ENV=production
+      - CONFIG_PATH=${CONFIG_PATH}
+      - LOG_DIR=${LOG_DIR}
+      - LOGGER_URL=${LOGGER_URL}
+      - LLM_MODEL=${LLM_MODEL}
+      - OLLAMA_URL=${OLLAMA_URL}
+      - LLM_MODEL_OPTIONS=${LLM_MODEL_OPTIONS}
+      - SWEEP_TRIALS_PER_COMBO=${SWEEP_TRIALS_PER_COMBO:-5}
+      - TTS_URL=${TTS_URL:-http://172.20.0.9:5200}
+
+  # -----------------------------------------------------------------------
+  # PIPER TTS SERVICE (text-to-speech for Explain narration)
+  # -----------------------------------------------------------------------
+  # 
+  # -----------------------------------------------------------------------
+
+  piper-tts:
+    image: python:3.11-slim
+    container_name: piper-tts
+    restart: unless-stopped
+    volumes:
+      - ./tts_service.py:/app/tts_service.py
+      - ./requirements-tts.txt:/app/requirements-tts.txt
+      - ./piper-models:/app/models
+      - ./data/audio/explanations:/app/audio/explanations
+    working_dir: /app
+    command: >
+      sh -c "apt-get update -qq && apt-get install -y -qq libgomp1 espeak-ng >/dev/null 2>&1;
+             pip install -r requirements-tts.txt --no-cache-dir -q &&
+             python tts_service.py"
+    networks:
+      a2a-net:
+        ipv4_address: 172.20.0.9
+    environment:
+      - TTS_PORT=5200
+      - PIPER_VOICE=${PIPER_VOICE:-en_GB-alan-medium}
+      - PIPER_MODEL_DIR=/app/models
+      - PIPER_VOICE_OPTIONS=${PIPER_VOICE_OPTIONS:-en_US-hfc_female-medium}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5200/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+networks:
+  a2a-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24

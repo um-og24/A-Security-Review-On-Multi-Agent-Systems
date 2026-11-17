@@ -1,0 +1,20 @@
+{
+  "combination": "M47_poisoned_sigsOFF_tlsON",
+  "purpose": "Examiners' item 47: the missing Scenario C combination that isolates TLS certificate validation (DNS poisoned, signature verification OFF, TLS validation ON)",
+  "settings": {
+    "dns_poisoning_active": true,
+    "verify_signatures": false,
+    "verify_certificates": true,
+    "profile": "full_defence",
+    "target_agents": [
+      "thermostat"
+    ],
+    "attacker": "spoof thermostat, tamper_responses on"
+  },
+  "trials": 30,
+  "started": "2026-10-04T21:51:10",
+  "finished": "2026-10-04T21:53:16",
+  "mean_wall_seconds_per_trial": 4.1,
+  "lab": "WSL2 Ubuntu 24.04 on the Windows 11 laptop; service code unchanged",
+  "csv": "M47_poisoned_sigsOFF_tlsON_2026-10-04_2153.csv"
+}

@@ -1,0 +1,5 @@
+Flask>=2.2
+requests>=2.31
+PyJWT>=2.8
+cryptography>=40.0
+flask-cors>=4.0
